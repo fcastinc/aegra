@@ -1,0 +1,49 @@
+{
+  "name": "tools",
+  "lf_type": "CHAIN",
+  "input": null,
+  "output": {
+    "messages": [
+      {
+        "type": "tool",
+        "data": {
+          "content": "{\"series\": {\"natgas_total_consumption\": {\"name\": \"natural gas total delivered to consumers in the u.s. (mmcf)\", \"count\": 1321, \"non_null\": 1321, \"missing_pct\": 0.0, \"date_range\": [\"2001-01-07\", \"2026-04-26\"], \"mean\": 468571.5717, \"min\": 214810.1349, \"max\": 946775.8457}}}",
+          "additional_kwargs": {},
+          "response_metadata": {},
+          "type": "tool",
+          "name": "data_access",
+          "id": "03e5b805-fc22-4ad8-ae95-592c583bf420",
+          "tool_call_id": "chatcmpl-tool-912c79895d6f5d31",
+          "artifact": null,
+          "status": "success"
+        }
+      }
+    ]
+  },
+  "metadata": {
+    "attributes": {
+      "langfuse.user.id": "452",
+      "user.id": "452",
+      "langfuse.session.id": "1eca5472-3888-4442-8e00-c30f38e5489a",
+      "langfuse.trace.name": "main",
+      "output.mime_type": "application/json",
+      "session.id": "1eca5472-3888-4442-8e00-c30f38e5489a",
+      "metadata": "{\"ls_integration\": \"langchain_create_agent\", \"lc_agent_name\": \"data_load\", \"run_id\": \"754f7ee6-5ac4-40da-b8c9-a379680e9295\", \"thread_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"session_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"user_id\": \"452\", \"langfuse_session_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"langfuse_user_id\": \"452\", \"langgraph_step\": 6, \"langgraph_node\": \"tools\", \"langgraph_triggers\": [\"__pregel_push\"], \"langgraph_path\": [\"__pregel_push\", 0, false], \"langgraph_checkpoint_ns\": \"tools:320bda34-44f3-2c91-d77d-feaf6668cf45|tools:72c7f217-9a6c-685b-138d-60fa49a34c4c\", \"checkpoint_ns\": \"tools:320bda34-44f3-2c91-d77d-feaf6668cf45\"}",
+      "openinference.span.kind": "CHAIN"
+    },
+    "resourceAttributes": {
+      "telemetry.sdk.language": "python",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.version": "1.43.0",
+      "service.instance.id": "1afafd44-7301-4acb-8c57-0f5f31b50291",
+      "service.name": "aegra-backend",
+      "service.version": "0.9.24",
+      "deployment.environment": "local"
+    },
+    "scope": {
+      "name": "openinference.instrumentation.langchain",
+      "version": "0.1.67",
+      "attributes": {}
+    }
+  }
+}

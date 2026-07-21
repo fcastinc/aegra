@@ -324,6 +324,12 @@ class ObservabilitySettings(EnvBase):
     LANGFUSE_BASE_URL: str = "http://localhost:3000"
     LANGFUSE_PUBLIC_KEY: str | None = None
     LANGFUSE_SECRET_KEY: str | None = None
+    # Export-time presentation transform for the Langfuse target (observability/langfuse_render.py):
+    # rewrites input.value/output.value into the OpenAI chat format Langfuse renders, and drops the
+    # redundant full-state input copy on graph-node spans (dedup — Langfuse ingest rejects >~4.5MB).
+    # Default ON: with it off, LangChain-serialized payloads display as raw JSON and node spans
+    # re-carry the duplication.
+    LANGFUSE_RENDER_ADAPTER: bool = True
 
     # --- Phoenix Specifics ---
     PHOENIX_COLLECTOR_ENDPOINT: str = "http://127.0.0.1:6006/v1/traces"

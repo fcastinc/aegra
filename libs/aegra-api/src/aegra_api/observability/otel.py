@@ -78,10 +78,25 @@ class OpenTelemetryProvider(ObservabilityProvider):
             try:
                 exporter = target.get_exporter()
                 if exporter:
+                    exporter = self._maybe_wrap_langfuse_render(target, exporter)
                     self._tracer_provider.add_span_processor(BatchSpanProcessor(exporter))
                     logger.info(f"Observability: Attached target '{target.name}'")
             except Exception as e:
                 logger.error(f"Observability: Failed to attach target '{target.name}': {e}")
+
+    @staticmethod
+    def _maybe_wrap_langfuse_render(target: BaseOtelTarget, exporter: Any) -> Any:
+        """Wrap the Langfuse target's exporter with the render adapter when enabled.
+
+        Langfuse-scoped by construction: other targets (Phoenix, generic OTLP) keep the
+        faithful OpenInference attributes untouched. See langfuse_render.py for the contract.
+        """
+        if isinstance(target, LangfuseTarget) and settings.observability.LANGFUSE_RENDER_ADAPTER:
+            from aegra_api.observability.langfuse_render import LangfuseRenderExporter
+
+            logger.info("Observability: Langfuse render adapter enabled")
+            return LangfuseRenderExporter(exporter)
+        return exporter
 
     def setup(self) -> None:
         """Initializes the Global Tracer Provider. Runs once."""
@@ -106,6 +121,7 @@ class OpenTelemetryProvider(ObservabilityProvider):
             try:
                 exporter = target.get_exporter()
                 if exporter:
+                    exporter = self._maybe_wrap_langfuse_render(target, exporter)
                     processor = BatchSpanProcessor(exporter)
                     self._tracer_provider.add_span_processor(processor)
                     processors_count += 1

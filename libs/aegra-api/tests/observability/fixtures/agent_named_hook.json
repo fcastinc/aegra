@@ -1,0 +1,31 @@
+{
+  "name": "OrphanedToolCallRepair.before_agent",
+  "lf_type": "AGENT",
+  "input": null,
+  "output": null,
+  "metadata": {
+    "attributes": {
+      "langfuse.user.id": "452",
+      "user.id": "452",
+      "langfuse.session.id": "1eca5472-3888-4442-8e00-c30f38e5489a",
+      "langfuse.trace.name": "main",
+      "session.id": "1eca5472-3888-4442-8e00-c30f38e5489a",
+      "metadata": "{\"ls_integration\": \"langchain_create_agent\", \"lc_agent_name\": \"unified_assistant\", \"run_id\": \"754f7ee6-5ac4-40da-b8c9-a379680e9295\", \"thread_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"session_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"user_id\": \"452\", \"langfuse_session_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"langfuse_user_id\": \"452\", \"langgraph_step\": 363, \"langgraph_node\": \"OrphanedToolCallRepair.before_agent\", \"langgraph_triggers\": [\"branch:to:OrphanedToolCallRepair.before_agent\"], \"langgraph_path\": [\"__pregel_pull\", \"OrphanedToolCallRepair.before_agent\"], \"langgraph_checkpoint_ns\": \"OrphanedToolCallRepair.before_agent:639d7fa7-6cca-3c61-5648-7f0a132939fa\"}",
+      "openinference.span.kind": "AGENT"
+    },
+    "resourceAttributes": {
+      "telemetry.sdk.language": "python",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.version": "1.43.0",
+      "service.instance.id": "1afafd44-7301-4acb-8c57-0f5f31b50291",
+      "service.name": "aegra-backend",
+      "service.version": "0.9.24",
+      "deployment.environment": "local"
+    },
+    "scope": {
+      "name": "openinference.instrumentation.langchain",
+      "version": "0.1.67",
+      "attributes": {}
+    }
+  }
+}

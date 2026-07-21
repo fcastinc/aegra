@@ -41,6 +41,10 @@ dependencies = [
     "opentelemetry-sdk>=1.39.1",
     "opentelemetry-exporter-otlp>=1.39.1",
     "openinference-instrumentation-langchain>=0.1.58",
+    # langfuse_render.py decodes/converts LangChain message serializations at export
+    # (messages_from_dict, load, convert_to_openai_messages). Declared direct — it was
+    # only ever transitive via langgraph, and the adapter imports it by name.
+    "langchain-core>=1.0.0",
 
     # Metrics
     # >=8.0.2: 7.x reads route.path on FastAPI >=0.137's _IncludedRouter (which has

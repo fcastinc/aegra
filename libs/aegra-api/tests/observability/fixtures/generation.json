@@ -1,0 +1,305 @@
+{
+  "name": "ReasoningChatOpenAI",
+  "lf_type": "GENERATION",
+  "input": {
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "data_access",
+          "description": "The warehouse (`atlas_prod`) \u2014 discover, query, and load data. One tool,\n    several actions. (The user's OWN uploaded files are separate: use `user_data`.)\n\n    SQL \u2014 raw read-only query; the escape hatch for ad-hoc/exploratory work,\n    joins, counts, and non-series tables:\n      data_access(action=\"sql\", query=\"SELECT ...\")   (optional save_as + description to cache)\n\n    DISCOVER \u2014 \"what data do we have / what can I forecast\": the CURATED catalog\n    (described entries + sample_queries) \u2014 the best starting point. With `query`,\n    runs an econ-series name search instead \u2014 a NARROW search, so never conclude\n    data is absent from a query miss:\n      data_access(action=\"discover\")                  curated catalog\n      data_access(action=\"discover\", query=\"cheese\")  econ-series name search\n\n    SCHEMAS \u2014 the LIVE inventory of everything the agent can actually read (the\n    access allowlist), straight from the database. Use it when discover comes up\n    empty \u2014 it surfaces data that exists but isn't catalogued yet:\n      data_access(action=\"schemas\")                        schema \u2192 table map\n      data_access(action=\"schemas\", target_schema=\"usda_raw\")  tables + columns\n\n    LOAD \u2014 the canonical loader for ONE OR MANY series. Resolves each series_id \u2192\n    pd.Series w/ DatetimeIndex, saved as its OWN discrete stash entry (own index),\n    optionally tagged with a `group`. Returns a SINGLE-SHAPE reference (no raw values):\n    `{group, loaded:[{stash_name,series_id,name,rows,range}], missing:[{series_id,reason}]}`.\n    Use this for a set of series \u2014 do NOT iterate load_series then merge into one panel\n    (different spans \u2192 a null-riddled frame). Each series stays discrete; align downstream\n    only if you must (`pd.DataFrame({...})`):\n      data_access(action=\"load\", series_ids=[\"...\",\"...\"], group=\"treasury_yields\")\n\n    LOAD_SERIES \u2014 single-series shortcut (same discrete save, series-stats reference).\n    Do NOT hand-write SQL against data.regressors; the resolution is brittle:\n      data_access(action=\"load_series\", series_id=\"...\", start_date=\"...\", stash_name=\"...\")\n\n    QUERY_DATA \u2014 per-series summary statistics (count, missing %, date range,\n    mean/min/max) for known series_ids \u2014 NOT the raw observations (use\n    load_series to get the actual values):\n      data_access(action=\"query_data\", series_ids=[\"...\"], start_date=\"...\", end_date=\"...\")\n\n    BROWSE / GET_DETAIL \u2014 catalog navigation: `browse` lists distinct values of a\n    field (commodity/source_schema/unit); `get_detail` shows one series' metadata.\n    HELP \u2014 `data_access(action=\"help\")` lists available actions.\n\n    Args:\n        action: sql | discover | schemas | load | load_series | query_data | browse | get_detail | help\n        query: SQL for action=\"sql\"; econ-series search term for action=\"discover\"\n        series_ids: series_ids for action=\"load\" (multi-series load) and query_data (summary stats)\n        series_id: single series_id for load_series / get_detail\n        group: optional batch label for action=\"load\" \u2014 ties the discrete series saved together\n        start_date / end_date: date filters for query_data / load_series (YYYY-MM-DD)\n        field: column to browse \u2014 commodity, source_schema, unit\n        limit: max results\n        stash_name: optional stash key for load_series (default: slug of series name)\n        target_schema: schema filter \u2014 for discover (one catalog area) or schemas (drill into one schema's tables+columns)\n        save_as: optional stash key to cache an action=\"sql\" result DataFrame\n        description: required with save_as \u2014 describes the cached data",
+          "parameters": {
+            "properties": {
+              "action": {
+                "type": "string"
+              },
+              "query": {
+                "default": "",
+                "type": "string"
+              },
+              "series_ids": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "series_id": {
+                "default": "",
+                "type": "string"
+              },
+              "start_date": {
+                "default": "",
+                "type": "string"
+              },
+              "end_date": {
+                "default": "",
+                "type": "string"
+              },
+              "field": {
+                "default": "commodity",
+                "type": "string"
+              },
+              "limit": {
+                "default": 15,
+                "type": "integer"
+              },
+              "stash_name": {
+                "default": "",
+                "type": "string"
+              },
+              "target_schema": {
+                "default": "",
+                "type": "string"
+              },
+              "save_as": {
+                "default": "",
+                "type": "string"
+              },
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "group": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "required": [
+              "action"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "user_data",
+          "description": "The user's OWN uploaded datasets \u2014 private per-customer SQL tables,\n    SEPARATE from the shared warehouse \u2014 one tool, two actions.\n\n    LIST (default) \u2014 names, columns, row counts of their uploaded datasets:\n      user_data(action=\"list\")\n    QUERY \u2014 read-only DuckDB SQL over those datasets (JOIN-able with each\n    other; cannot reach the warehouse \u2014 use data_access(action=\"sql\") for that).\n    Returns a capped PREVIEW (up to 50 rows; truncated at 10,000) \u2014 for full\n    data, pull it in execute_code via query_my_data(...):\n      user_data(action=\"query\", sql=\"SELECT ... FROM <table>\")",
+          "parameters": {
+            "properties": {
+              "action": {
+                "default": "list",
+                "type": "string"
+              },
+              "sql": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "execute_code",
+          "description": "Execute Python code in a Jupyter kernel sandbox.\n\n    The sandbox is pre-configured with imports and helpers specific\n    to the current agent. See the system prompt for available\n    libraries, functions, and stash operations.\n\n    Persistence (IMPORTANT): variables persist within a turn and USUALLY across\n    turns, but the kernel can be EVICTED between turns (idle timeout or capacity)\n    \u2014 which wipes every variable, model, and import. Do NOT assume a variable\n    from a previous turn still exists. Call namespace.variables() to check what's\n    actually in scope; save anything you must keep across turns to the stash (it\n    survives eviction, the kernel may not); use code_recall to rebuild prior work.\n\n    Plotting: every `plotly.graph_objects.Figure` (including those returned\n    by plotly.express) auto-renders to the user's chat panel at end of cell \u2014\n    do NOT call `fig.show()`, `display(fig)`, or leave `fig` as the cell's\n    last expression. The tool result's `figures` field is always `[]` after\n    plots are sent (they go via a side channel); the stdout line\n    `[N plot(s) sent to chat \u2014 visible to the user]` confirms success.\n    Calling `.show()` on top of auto-render produces duplicate plots and\n    is the single most common plotting mistake \u2014 just create the figure\n    and let the cell end. matplotlib / seaborn do NOT reach the user's\n    card \u2014 use plotly.\n\n    Tables: `display_dataframe(df, title=\"...\")` ships a DataFrame to the\n    user's table card (scrollable, up to 5000 rows) \u2014 the table\n    equivalent of letting a Figure auto-render. Use it whenever the user\n    needs to see more than ~30 rows; for \u226430 rows prefer a markdown table in\n    your reply. The stdout line `[N table(s) sent to chat \u2014 visible to the\n    user]` confirms success. After calling it, summarize in your reply what\n    was sent (key columns, notable rows) \u2014 the user sees the card, not your\n    stdout.\n\n    Loading SOURCE data (the warehouse + the user's uploads) is GATED per agent.\n    The in-kernel loaders you actually have \u2014 if any \u2014 are listed in your system\n    prompt under \"## Loading source data\"; use those to pull FULL results straight\n    into a variable (the `data_access` sql tool only returns a capped preview). Do\n    NOT guess a loader name: if your prompt doesn't list one, it is NOT defined in\n    your kernel (calling it fails lint), and you do not load source data yourself \u2014\n    read what the data_load sub already assembled from the stash instead:\n    `df = stash.load(\"<handle>\")` (see the `## Stash` block for handles).\n\n    Your analytical toolbox: `libs()` prints the modeling libraries available to\n    you in this kernel, grouped by purpose (installed-only, so it never lies) \u2014\n    call it before reaching for a library so you use one you actually have.\n    `libs(\"forecast\")` filters to matching groups. For HOW to use a library, ask\n    the code_info sub (docs + worked examples).\n\n    Inspect your namespace with the `namespace` object (persists with the kernel):\n    namespace.variables() lists live data variables (name + type/shape),\n    namespace.variables(detail=True) adds DataFrame previews, namespace.functions()\n    lists functions you defined in earlier cells (signature + docstring), and\n    namespace.source(\"name\") prints a defined function's source. variables()/\n    functions() accept an optional name filter, e.g. namespace.variables(\"df\"), and\n    print a readable summary AND return a list of {name, type, shape, ...} dicts you\n    can capture and slice: v = namespace.variables(); v[:5]. Use these instead of\n    re-printing things to see what's in scope.\n\n    Leave yourself breadcrumbs on a long-lived kernel \u2014 they survive context\n    compaction, so a later you knows what a name was for: DOCSTRING your helper\n    functions (namespace.functions() shows the docstring back), and for the small\n    odds-and-ends that aren't worth stashing (a threshold, a fitted scalar, a derived\n    index) call namespace.note(\"thr\", \"decision threshold from the ROC knee\") \u2014\n    namespace.variables() then shows the note inline. The stash is for the big\n    described artifacts (panels, models, result series); notes are for everything\n    smaller. Notes are best-effort across kernel eviction \u2014 stash what MUST survive.\n\n    Commenting: comment generously and make every cell self-contained and\n    self-explanatory. State the PURPOSE of the analysis, your APPROACH, and key\n    assumptions/decisions \u2014 not just what a line does. Your comments are what\n    `code_recall` matches on for semantic search AND the only context a future\n    session gets when it pulls this code back up: code recalled with no comments\n    is useless. Good comments now = findable later + understandable on reuse.\n\n    Annotate outcomes \u2014 don't skip this. When a cell settles a unit of work,\n    before moving on, record the verdict on it: a clean, reusable result \u2192\n    code_recall(action=\"note\", id=\"<this run>\", verdict=\"good\", note=\"<why>\");\n    a failure or dead end \u2192 verdict=\"dead_end\" with the reason (this is what\n    stops a future session from re-running the same broken approach). Back-fill\n    the verdict on an EARLIER run once a later cell proves it worked or failed.\n    Verdicts are not optional bookkeeping \u2014 they are what makes recall rank the\n    good code first and surface the lesson behind the bad. For a result you'd\n    want to reuse months from now, `code_recall(action=\"promote\", id=...)` it.\n\n    Args:\n        code: Python code to execute.",
+          "parameters": {
+            "properties": {
+              "code": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "stash",
+          "description": "Session blackboard for data artifacts across turns \u2014 one tool, five actions.\n\n    NOTE: for Python objects (models, fitted pipelines, large DataFrames, numpy\n    arrays) DO NOT use this tool \u2014 call `stash.save(name, obj, description,\n    kind=..., inputs=[...])` INSIDE execute_code (the in-kernel stash pickles\n    objects directly). This tool is only for small JSON-encodable\n    config/lists/primitives.\n\n    LIST (default) \u2014 what's saved this session (check before reloading data):\n      stash(action=\"list\")\n    LOAD \u2014 fetch a saved item by name (DataFrames show shape/columns/head; other\n    objects return a 500-char string preview):\n      stash(action=\"load\", name=\"y\")\n    SAVE \u2014 store small JSON data (typed metadata optional but preferred):\n      stash(action=\"save\", name=\"cfg\", description=\"...\", data_json=\"{...}\", kind=\"config\", inputs=[\"raw\"])\n      kind \u2208 dataframe|model|plot|analysis|text|config; inputs = upstream entry names (for lineage).\n    REMOVE \u2014 delete a saved item:\n      stash(action=\"remove\", name=\"y\")\n    LINEAGE \u2014 trace what an artifact was derived from (walks `inputs` back):\n      stash(action=\"lineage\", name=\"model\")",
+          "parameters": {
+            "properties": {
+              "action": {
+                "default": "list",
+                "type": "string"
+              },
+              "name": {
+                "default": "",
+                "type": "string"
+              },
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "data_json": {
+                "default": "",
+                "type": "string"
+              },
+              "kind": {
+                "default": "",
+                "type": "string"
+              },
+              "inputs": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "compare",
+          "description": "Evaluate relationships between a target series and driver series.\n\n    Args:\n        target_id: The target series_id\n        driver_ids: Driver series_ids (required for cross_correlation/correlation_matrix)\n        method: cross_correlation | correlation_matrix | discover_correlates\n            (call with method='help' for full details)\n        max_lag: Maximum lag to test in weeks (default 26; positive lag = driver leads target)\n        params: Extra parameters for discover_correlates\n            (top_n, commodity, source_schema, transform, min_lag)",
+          "parameters": {
+            "properties": {
+              "target_id": {
+                "type": "string"
+              },
+              "driver_ids": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "method": {
+                "default": "cross_correlation",
+                "type": "string"
+              },
+              "max_lag": {
+                "default": 26,
+                "type": "integer"
+              },
+              "params": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "target_id"
+            ],
+            "type": "object"
+          }
+        }
+      }
+    ]
+  },
+  "output": {
+    "generations": [
+      [
+        {
+          "text": "I searched the warehouse for U.S. natural gas consumption data with a longer historical range. \n\nThe most relevant series found is **`natgas_total_consumption`**, which tracks the total natural gas delivered to consumers in the U.S. However, its available historical range in the warehouse only extends from **January 2001 to April 2026**, which does not meet your requirement for data going back to the 1980s.\n\nOther related series (Commercial, Industrial, and Residential consumption) were also identified, but they share the same limited date range.\n\n**Summary of findings:**\n\n| Series ID | Description | Date Range | Unit |\n| :--- | :--- | :--- | :--- |\n| `natgas_total_consumption` | Natural gas total delivered to consumers in the U.S. | 2001-01-07 to 2026-04-26 | mmcf |\n\nNo series matching your specific criteria (1980s or earlier) was found in the current warehouse catalog or the live `data.series_lookup` table.",
+          "generation_info": null,
+          "type": "ChatGeneration",
+          "message": {
+            "lc": 1,
+            "type": "constructor",
+            "id": [
+              "langchain",
+              "schema",
+              "messages",
+              "AIMessage"
+            ],
+            "kwargs": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "I searched the warehouse for U.S. natural gas consumption data with a longer historical range. \n\nThe most relevant series found is **`natgas_total_consumption`**, which tracks the total natural gas delivered to consumers in the U.S. However, its available historical range in the warehouse only extends from **January 2001 to April 2026**, which does not meet your requirement for data going back to the 1980s.\n\nOther related series (Commercial, Industrial, and Residential consumption) were also identified, but they share the same limited date range.\n\n**Summary of findings:**\n\n| Series ID | Description | Date Range | Unit |\n| :--- | :--- | :--- | :--- |\n| `natgas_total_consumption` | Natural gas total delivered to consumers in the U.S. | 2001-01-07 to 2026-04-26 | mmcf |\n\nNo series matching your specific criteria (1980s or earlier) was found in the current warehouse catalog or the live `data.series_lookup` table.",
+                  "index": 0
+                }
+              ],
+              "response_metadata": {
+                "model_provider": "openai",
+                "finish_reason": "stop",
+                "model_name": "gemma-4-26b",
+                "output_version": "v1"
+              },
+              "type": "ai",
+              "id": "lc_run--019f868b-7104-7961-a95c-5b299ef99754",
+              "usage_metadata": {
+                "input_tokens": 8724,
+                "output_tokens": 247,
+                "total_tokens": 8971,
+                "input_token_details": {
+                  "cache_read": 8448
+                }
+              },
+              "tool_calls": [],
+              "invalid_tool_calls": []
+            }
+          }
+        }
+      ]
+    ],
+    "llm_output": null,
+    "run": null,
+    "type": "LLMResult"
+  },
+  "metadata": {
+    "attributes": {
+      "langfuse.user.id": "452",
+      "user.id": "452",
+      "langfuse.session.id": "1eca5472-3888-4442-8e00-c30f38e5489a",
+      "langfuse.trace.name": "main",
+      "output.mime_type": "application/json",
+      "llm.invocation_parameters": "{\"model\": \"secondary\", \"model_name\": \"secondary\", \"stream\": false, \"extra_body\": {\"enable_parallel_tool_calls\": true, \"chat_template_kwargs\": {\"enable_thinking\": false}}, \"temperature\": 0.3, \"max_completion_tokens\": 2048, \"_type\": \"openai-chat\", \"stop\": null, \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"data_access\", \"description\": \"The warehouse (`atlas_prod`) \u2014 discover, query, and load data. One tool,\\n    several actions. (The user's OWN uploaded files are separate: use `user_data`.)\\n\\n    SQL \u2014 raw read-only query; the escape hatch for ad-hoc/exploratory work,\\n    joins, counts, and non-series tables:\\n      data_access(action=\\\"sql\\\", query=\\\"SELECT ...\\\")   (optional save_as + description to cache)\\n\\n    DISCOVER \u2014 \\\"what data do we have / what can I forecast\\\": the CURATED catalog\\n    (described entries + sample_queries) \u2014 the best starting point. With `query`,\\n    runs an econ-series name search instead \u2014 a NARROW search, so never conclude\\n    data is absent from a query miss:\\n      data_access(action=\\\"discover\\\")                  curated catalog\\n      data_access(action=\\\"discover\\\", query=\\\"cheese\\\")  econ-series name search\\n\\n    SCHEMAS \u2014 the LIVE inventory of everything the agent can actually read (the\\n    access allowlist), straight from the database. Use it when discover comes up\\n    empty \u2014 it surfaces data that exists but isn't catalogued yet:\\n      data_access(action=\\\"schemas\\\")                        schema \u2192 table map\\n      data_access(action=\\\"schemas\\\", target_schema=\\\"usda_raw\\\")  tables + columns\\n\\n    LOAD \u2014 the canonical loader for ONE OR MANY series. Resolves each series_id \u2192\\n    pd.Series w/ DatetimeIndex, saved as its OWN discrete stash entry (own index),\\n    optionally tagged with a `group`. Returns a SINGLE-SHAPE reference (no raw values):\\n    `{group, loaded:[{stash_name,series_id,name,rows,range}], missing:[{series_id,reason}]}`.\\n    Use this for a set of series \u2014 do NOT iterate load_series then merge into one panel\\n    (different spans \u2192 a null-riddled frame). Each series stays discrete; align downstream\\n    only if you must (`pd.DataFrame({...})`):\\n      data_access(action=\\\"load\\\", series_ids=[\\\"...\\\",\\\"...\\\"], group=\\\"treasury_yields\\\")\\n\\n    LOAD_SERIES \u2014 single-series shortcut (same discrete save, series-stats reference).\\n    Do NOT hand-write SQL against data.regressors; the resolution is brittle:\\n      data_access(action=\\\"load_series\\\", series_id=\\\"...\\\", start_date=\\\"...\\\", stash_name=\\\"...\\\")\\n\\n    QUERY_DATA \u2014 per-series summary statistics (count, missing %, date range,\\n    mean/min/max) for known series_ids \u2014 NOT the raw observations (use\\n    load_series to get the actual values):\\n      data_access(action=\\\"query_data\\\", series_ids=[\\\"...\\\"], start_date=\\\"...\\\", end_date=\\\"...\\\")\\n\\n    BROWSE / GET_DETAIL \u2014 catalog navigation: `browse` lists distinct values of a\\n    field (commodity/source_schema/unit); `get_detail` shows one series' metadata.\\n    HELP \u2014 `data_access(action=\\\"help\\\")` lists available actions.\\n\\n    Args:\\n        action: sql | discover | schemas | load | load_series | query_data | browse | get_detail | help\\n        query: SQL for action=\\\"sql\\\"; econ-series search term for action=\\\"discover\\\"\\n        series_ids: series_ids for action=\\\"load\\\" (multi-series load) and query_data (summary stats)\\n        series_id: single series_id for load_series / get_detail\\n        group: optional batch label for action=\\\"load\\\" \u2014 ties the discrete series saved together\\n        start_date / end_date: date filters for query_data / load_series (YYYY-MM-DD)\\n        field: column to browse \u2014 commodity, source_schema, unit\\n        limit: max results\\n        stash_name: optional stash key for load_series (default: slug of series name)\\n        target_schema: schema filter \u2014 for discover (one catalog area) or schemas (drill into one schema's tables+columns)\\n        save_as: optional stash key to cache an action=\\\"sql\\\" result DataFrame\\n        description: required with save_as \u2014 describes the cached data\", \"parameters\": {\"properties\": {\"action\": {\"type\": \"string\"}, \"query\": {\"default\": \"\", \"type\": \"string\"}, \"series_ids\": {\"anyOf\": [{\"items\": {\"type\": \"string\"}, \"type\": \"array\"}, {\"type\": \"null\"}], \"default\": null}, \"series_id\": {\"default\": \"\", \"type\": \"string\"}, \"start_date\": {\"default\": \"\", \"type\": \"string\"}, \"end_date\": {\"default\": \"\", \"type\": \"string\"}, \"field\": {\"default\": \"commodity\", \"type\": \"string\"}, \"limit\": {\"default\": 15, \"type\": \"integer\"}, \"stash_name\": {\"default\": \"\", \"type\": \"string\"}, \"target_schema\": {\"default\": \"\", \"type\": \"string\"}, \"save_as\": {\"default\": \"\", \"type\": \"string\"}, \"description\": {\"default\": \"\", \"type\": \"string\"}, \"group\": {\"default\": \"\", \"type\": \"string\"}}, \"required\": [\"action\"], \"type\": \"object\"}}}, {\"type\": \"function\", \"function\": {\"name\": \"user_data\", \"description\": \"The user's OWN uploaded datasets \u2014 private per-customer SQL tables,\\n    SEPARATE from the shared warehouse \u2014 one tool, two actions.\\n\\n    LIST (default) \u2014 names, columns, row counts of their uploaded datasets:\\n      user_data(action=\\\"list\\\")\\n    QUERY \u2014 read-only DuckDB SQL over those datasets (JOIN-able with each\\n    other; cannot reach the warehouse \u2014 use data_access(action=\\\"sql\\\") for that).\\n    Returns a capped PREVIEW (up to 50 rows; truncated at 10,000) \u2014 for full\\n    data, pull it in execute_code via query_my_data(...):\\n      user_data(action=\\\"query\\\", sql=\\\"SELECT ... FROM <table>\\\")\", \"parameters\": {\"properties\": {\"action\": {\"default\": \"list\", \"type\": \"string\"}, \"sql\": {\"default\": \"\", \"type\": \"string\"}}, \"type\": \"object\"}}}, {\"type\": \"function\", \"function\": {\"name\": \"execute_code\", \"description\": \"Execute Python code in a Jupyter kernel sandbox.\\n\\n    The sandbox is pre-configured with imports and helpers specific\\n    to the current agent. See the system prompt for available\\n    libraries, functions, and stash operations.\\n\\n    Persistence (IMPORTANT): variables persist within a turn and USUALLY across\\n    turns, but the kernel can be EVICTED between turns (idle timeout or capacity)\\n    \u2014 which wipes every variable, model, and import. Do NOT assume a variable\\n    from a previous turn still exists. Call namespace.variables() to check what's\\n    actually in scope; save anything you must keep across turns to the stash (it\\n    survives eviction, the kernel may not); use code_recall to rebuild prior work.\\n\\n    Plotting: every `plotly.graph_objects.Figure` (including those returned\\n    by plotly.express) auto-renders to the user's chat panel at end of cell \u2014\\n    do NOT call `fig.show()`, `display(fig)`, or leave `fig` as the cell's\\n    last expression. The tool result's `figures` field is always `[]` after\\n    plots are sent (they go via a side channel); the stdout line\\n    `[N plot(s) sent to chat \u2014 visible to the user]` confirms success.\\n    Calling `.show()` on top of auto-render produces duplicate plots and\\n    is the single most common plotting mistake \u2014 just create the figure\\n    and let the cell end. matplotlib / seaborn do NOT reach the user's\\n    card \u2014 use plotly.\\n\\n    Tables: `display_dataframe(df, title=\\\"...\\\")` ships a DataFrame to the\\n    user's table card (scrollable, up to 5000 rows) \u2014 the table\\n    equivalent of letting a Figure auto-render. Use it whenever the user\\n    needs to see more than ~30 rows; for \u226430 rows prefer a markdown table in\\n    your reply. The stdout line `[N table(s) sent to chat \u2014 visible to the\\n    user]` confirms success. After calling it, summarize in your reply what\\n    was sent (key columns, notable rows) \u2014 the user sees the card, not your\\n    stdout.\\n\\n    Loading SOURCE data (the warehouse + the user's uploads) is GATED per agent.\\n    The in-kernel loaders you actually have \u2014 if any \u2014 are listed in your system\\n    prompt under \\\"## Loading source data\\\"; use those to pull FULL results straight\\n    into a variable (the `data_access` sql tool only returns a capped preview). Do\\n    NOT guess a loader name: if your prompt doesn't list one, it is NOT defined in\\n    your kernel (calling it fails lint), and you do not load source data yourself \u2014\\n    read what the data_load sub already assembled from the stash instead:\\n    `df = stash.load(\\\"<handle>\\\")` (see the `## Stash` block for handles).\\n\\n    Your analytical toolbox: `libs()` prints the modeling libraries available to\\n    you in this kernel, grouped by purpose (installed-only, so it never lies) \u2014\\n    call it before reaching for a library so you use one you actually have.\\n    `libs(\\\"forecast\\\")` filters to matching groups. For HOW to use a library, ask\\n    the code_info sub (docs + worked examples).\\n\\n    Inspect your namespace with the `namespace` object (persists with the kernel):\\n    namespace.variables() lists live data variables (name + type/shape),\\n    namespace.variables(detail=True) adds DataFrame previews, namespace.functions()\\n    lists functions you defined in earlier cells (signature + docstring), and\\n    namespace.source(\\\"name\\\") prints a defined function's source. variables()/\\n    functions() accept an optional name filter, e.g. namespace.variables(\\\"df\\\"), and\\n    print a readable summary AND return a list of {name, type, shape, ...} dicts you\\n    can capture and slice: v = namespace.variables(); v[:5]. Use these instead of\\n    re-printing things to see what's in scope.\\n\\n    Leave yourself breadcrumbs on a long-lived kernel \u2014 they survive context\\n    compaction, so a later you knows what a name was for: DOCSTRING your helper\\n    functions (namespace.functions() shows the docstring back), and for the small\\n    odds-and-ends that aren't worth stashing (a threshold, a fitted scalar, a derived\\n    index) call namespace.note(\\\"thr\\\", \\\"decision threshold from the ROC knee\\\") \u2014\\n    namespace.variables() then shows the note inline. The stash is for the big\\n    described artifacts (panels, models, result series); notes are for everything\\n    smaller. Notes are best-effort across kernel eviction \u2014 stash what MUST survive.\\n\\n    Commenting: comment generously and make every cell self-contained and\\n    self-explanatory. State the PURPOSE of the analysis, your APPROACH, and key\\n    assumptions/decisions \u2014 not just what a line does. Your comments are what\\n    `code_recall` matches on for semantic search AND the only context a future\\n    session gets when it pulls this code back up: code recalled with no comments\\n    is useless. Good comments now = findable later + understandable on reuse.\\n\\n    Annotate outcomes \u2014 don't skip this. When a cell settles a unit of work,\\n    before moving on, record the verdict on it: a clean, reusable result \u2192\\n    code_recall(action=\\\"note\\\", id=\\\"<this run>\\\", verdict=\\\"good\\\", note=\\\"<why>\\\");\\n    a failure or dead end \u2192 verdict=\\\"dead_end\\\" with the reason (this is what\\n    stops a future session from re-running the same broken approach). Back-fill\\n    the verdict on an EARLIER run once a later cell proves it worked or failed.\\n    Verdicts are not optional bookkeeping \u2014 they are what makes recall rank the\\n    good code first and surface the lesson behind the bad. For a result you'd\\n    want to reuse months from now, `code_recall(action=\\\"promote\\\", id=...)` it.\\n\\n    Args:\\n        code: Python code to execute.\", \"parameters\": {\"properties\": {\"code\": {\"type\": \"string\"}}, \"required\": [\"code\"], \"type\": \"object\"}}}, {\"type\": \"function\", \"function\": {\"name\": \"stash\", \"description\": \"Session blackboard for data artifacts across turns \u2014 one tool, five actions.\\n\\n    NOTE: for Python objects (models, fitted pipelines, large DataFrames, numpy\\n    arrays) DO NOT use this tool \u2014 call `stash.save(name, obj, description,\\n    kind=..., inputs=[...])` INSIDE execute_code (the in-kernel stash pickles\\n    objects directly). This tool is only for small JSON-encodable\\n    config/lists/primitives.\\n\\n    LIST (default) \u2014 what's saved this session (check before reloading data):\\n      stash(action=\\\"list\\\")\\n    LOAD \u2014 fetch a saved item by name (DataFrames show shape/columns/head; other\\n    objects return a 500-char string preview):\\n      stash(action=\\\"load\\\", name=\\\"y\\\")\\n    SAVE \u2014 store small JSON data (typed metadata optional but preferred):\\n      stash(action=\\\"save\\\", name=\\\"cfg\\\", description=\\\"...\\\", data_json=\\\"{...}\\\", kind=\\\"config\\\", inputs=[\\\"raw\\\"])\\n      kind \u2208 dataframe|model|plot|analysis|text|config; inputs = upstream entry names (for lineage).\\n    REMOVE \u2014 delete a saved item:\\n      stash(action=\\\"remove\\\", name=\\\"y\\\")\\n    LINEAGE \u2014 trace what an artifact was derived from (walks `inputs` back):\\n      stash(action=\\\"lineage\\\", name=\\\"model\\\")\", \"parameters\": {\"properties\": {\"action\": {\"default\": \"list\", \"type\": \"string\"}, \"name\": {\"default\": \"\", \"type\": \"string\"}, \"description\": {\"default\": \"\", \"type\": \"string\"}, \"data_json\": {\"default\": \"\", \"type\": \"string\"}, \"kind\": {\"default\": \"\", \"type\": \"string\"}, \"inputs\": {\"anyOf\": [{\"items\": {\"type\": \"string\"}, \"type\": \"array\"}, {\"type\": \"null\"}], \"default\": null}}, \"type\": \"object\"}}}, {\"type\": \"function\", \"function\": {\"name\": \"compare\", \"description\": \"Evaluate relationships between a target series and driver series.\\n\\n    Args:\\n        target_id: The target series_id\\n        driver_ids: Driver series_ids (required for cross_correlation/correlation_matrix)\\n        method: cross_correlation | correlation_matrix | discover_correlates\\n            (call with method='help' for full details)\\n        max_lag: Maximum lag to test in weeks (default 26; positive lag = driver leads target)\\n        params: Extra parameters for discover_correlates\\n            (top_n, commodity, source_schema, transform, min_lag)\", \"parameters\": {\"properties\": {\"target_id\": {\"type\": \"string\"}, \"driver_ids\": {\"anyOf\": [{\"items\": {\"type\": \"string\"}, \"type\": \"array\"}, {\"type\": \"null\"}], \"default\": null}, \"method\": {\"default\": \"cross_correlation\", \"type\": \"string\"}, \"max_lag\": {\"default\": 26, \"type\": \"integer\"}, \"params\": {\"anyOf\": [{\"additionalProperties\": true, \"type\": \"object\"}, {\"type\": \"null\"}], \"default\": null}}, \"required\": [\"target_id\"], \"type\": \"object\"}}}]}",
+      "llm.provider": "openai",
+      "llm.system": "openai",
+      "llm.model_name": "secondary",
+      "llm.token_count.prompt": "8724",
+      "llm.token_count.completion": "247",
+      "llm.token_count.total": "8971",
+      "llm.token_count.prompt_details.cache_read": "8448",
+      "session.id": "1eca5472-3888-4442-8e00-c30f38e5489a",
+      "metadata": "{\"ls_integration\": \"langchain_chat_model\", \"lc_agent_name\": \"data_load\", \"run_id\": \"754f7ee6-5ac4-40da-b8c9-a379680e9295\", \"thread_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"session_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"user_id\": \"452\", \"langfuse_session_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"langfuse_user_id\": \"452\", \"langgraph_step\": 20, \"langgraph_node\": \"model\", \"langgraph_triggers\": [\"branch:to:model\"], \"langgraph_path\": [\"__pregel_pull\", \"model\"], \"langgraph_checkpoint_ns\": \"tools:320bda34-44f3-2c91-d77d-feaf6668cf45|model:8044b1c5-9a50-7e7e-82f2-48d05730af07\", \"checkpoint_ns\": \"tools:320bda34-44f3-2c91-d77d-feaf6668cf45\", \"ls_provider\": \"openai\", \"ls_model_name\": \"secondary\", \"ls_model_type\": \"chat\", \"ls_temperature\": 0.3, \"ls_max_tokens\": 2048, \"lc_versions\": {\"langchain-core\": \"1.4.8\", \"langchain\": \"1.3.11\"}, \"tags\": [\"agent:data_load\"]}",
+      "openinference.span.kind": "LLM"
+    },
+    "resourceAttributes": {
+      "telemetry.sdk.language": "python",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.version": "1.43.0",
+      "service.instance.id": "1afafd44-7301-4acb-8c57-0f5f31b50291",
+      "service.name": "aegra-backend",
+      "service.version": "0.9.24",
+      "deployment.environment": "local"
+    },
+    "scope": {
+      "name": "openinference.instrumentation.langchain",
+      "version": "0.1.67",
+      "attributes": {}
+    }
+  }
+}

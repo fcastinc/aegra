@@ -1,0 +1,53 @@
+{
+  "name": "data_access",
+  "lf_type": "TOOL",
+  "input": {
+    "action": "query_data",
+    "series_ids": [
+      "natgas_total_consumption"
+    ]
+  },
+  "output": {
+    "type": "tool",
+    "data": {
+      "content": "{\"series\": {\"natgas_total_consumption\": {\"name\": \"natural gas total delivered to consumers in the u.s. (mmcf)\", \"count\": 1321, \"non_null\": 1321, \"missing_pct\": 0.0, \"date_range\": [\"2001-01-07\", \"2026-04-26\"], \"mean\": 468571.5717, \"min\": 214810.1349, \"max\": 946775.8457}}}",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "tool",
+      "name": "data_access",
+      "id": null,
+      "tool_call_id": "chatcmpl-tool-912c79895d6f5d31",
+      "artifact": null,
+      "status": "success"
+    }
+  },
+  "metadata": {
+    "attributes": {
+      "langfuse.user.id": "452",
+      "user.id": "452",
+      "langfuse.session.id": "1eca5472-3888-4442-8e00-c30f38e5489a",
+      "langfuse.trace.name": "main",
+      "input.mime_type": "application/json",
+      "output.mime_type": "application/json",
+      "tool.name": "data_access",
+      "tool.description": "The warehouse (`atlas_prod`) \u2014 discover, query, and load data. One tool,\n    several actions. (The user's OWN uploaded files are separate: use `user_data`.)\n\n    SQL \u2014 raw read-only query; the escape hatch for ad-hoc/exploratory work,\n    joins, counts, and non-series tables:\n      data_access(action=\"sql\", query=\"SELECT ...\")   (optional save_as + description to cache)\n\n    DISCOVER \u2014 \"what data do we have / what can I forecast\": the CURATED catalog\n    (described entries + sample_queries) \u2014 the best starting point. With `query`,\n    runs an econ-series name search instead \u2014 a NARROW search, so never conclude\n    data is absent from a query miss:\n      data_access(action=\"discover\")                  curated catalog\n      data_access(action=\"discover\", query=\"cheese\")  econ-series name search\n\n    SCHEMAS \u2014 the LIVE inventory of everything the agent can actually read (the\n    access allowlist), straight from the database. Use it when discover comes up\n    empty \u2014 it surfaces data that exists but isn't catalogued yet:\n      data_access(action=\"schemas\")                        schema \u2192 table map\n      data_access(action=\"schemas\", target_schema=\"usda_raw\")  tables + columns\n\n    LOAD \u2014 the canonical loader for ONE OR MANY series. Resolves each series_id \u2192\n    pd.Series w/ DatetimeIndex, saved as its OWN discrete stash entry (own index),\n    optionally tagged with a `group`. Returns a SINGLE-SHAPE reference (no raw values):\n    `{group, loaded:[{stash_name,series_id,name,rows,range}], missing:[{series_id,reason}]}`.\n    Use this for a set of series \u2014 do NOT iterate load_series then merge into one panel\n    (different spans \u2192 a null-riddled frame). Each series stays discrete; align downstream\n    only if you must (`pd.DataFrame({...})`):\n      data_access(action=\"load\", series_ids=[\"...\",\"...\"], group=\"treasury_yields\")\n\n    LOAD_SERIES \u2014 single-series shortcut (same discrete save, series-stats reference).\n    Do NOT hand-write SQL against data.regressors; the resolution is brittle:\n      data_access(action=\"load_series\", series_id=\"...\", start_date=\"...\", stash_name=\"...\")\n\n    QUERY_DATA \u2014 per-series summary statistics (count, missing %, date range,\n    mean/min/max) for known series_ids \u2014 NOT the raw observations (use\n    load_series to get the actual values):\n      data_access(action=\"query_data\", series_ids=[\"...\"], start_date=\"...\", end_date=\"...\")\n\n    BROWSE / GET_DETAIL \u2014 catalog navigation: `browse` lists distinct values of a\n    field (commodity/source_schema/unit); `get_detail` shows one series' metadata.\n    HELP \u2014 `data_access(action=\"help\")` lists available actions.\n\n    Args:\n        action: sql | discover | schemas | load | load_series | query_data | browse | get_detail | help\n        query: SQL for action=\"sql\"; econ-series search term for action=\"discover\"\n        series_ids: series_ids for action=\"load\" (multi-series load) and query_data (summary stats)\n        series_id: single series_id for load_series / get_detail\n        group: optional batch label for action=\"load\" \u2014 ties the discrete series saved together\n        start_date / end_date: date filters for query_data / load_series (YYYY-MM-DD)\n        field: column to browse \u2014 commodity, source_schema, unit\n        limit: max results\n        stash_name: optional stash key for load_series (default: slug of series name)\n        target_schema: schema filter \u2014 for discover (one catalog area) or schemas (drill into one schema's tables+columns)\n        save_as: optional stash key to cache an action=\"sql\" result DataFrame\n        description: required with save_as \u2014 describes the cached data",
+      "session.id": "1eca5472-3888-4442-8e00-c30f38e5489a",
+      "metadata": "{\"ls_integration\": \"langchain_create_agent\", \"lc_agent_name\": \"data_load\", \"run_id\": \"754f7ee6-5ac4-40da-b8c9-a379680e9295\", \"thread_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"session_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"user_id\": \"452\", \"langfuse_session_id\": \"1eca5472-3888-4442-8e00-c30f38e5489a\", \"langfuse_user_id\": \"452\", \"langgraph_step\": 6, \"langgraph_node\": \"tools\", \"langgraph_triggers\": [\"__pregel_push\"], \"langgraph_path\": [\"__pregel_push\", 0, false], \"langgraph_checkpoint_ns\": \"tools:320bda34-44f3-2c91-d77d-feaf6668cf45|tools:72c7f217-9a6c-685b-138d-60fa49a34c4c\", \"checkpoint_ns\": \"tools:320bda34-44f3-2c91-d77d-feaf6668cf45\"}",
+      "openinference.span.kind": "TOOL"
+    },
+    "resourceAttributes": {
+      "telemetry.sdk.language": "python",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.version": "1.43.0",
+      "service.instance.id": "1afafd44-7301-4acb-8c57-0f5f31b50291",
+      "service.name": "aegra-backend",
+      "service.version": "0.9.24",
+      "deployment.environment": "local"
+    },
+    "scope": {
+      "name": "openinference.instrumentation.langchain",
+      "version": "0.1.67",
+      "attributes": {}
+    }
+  }
+}
