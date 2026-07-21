@@ -181,7 +181,30 @@ def _render_last_message(value: Any) -> str:
 
 
 def _render_triggering_call(value: Any) -> str:
-    """The assistant message carrying ``tool_calls``, searched backward through state."""
+    """The call that triggered the tools node, as an assistant message with ``tool_calls``.
+
+    LangChain v1's ToolNode receives the tool_calls list itself
+    (``[{name, args, id, type: "tool_call"}]``) — already the triggering call; wrap it so
+    Langfuse renders tool-call cards. A full message-state input (other graph builds) is
+    searched backward for the tool-calling assistant message.
+    """
+    if (
+        isinstance(value, list)
+        and value
+        and all(isinstance(c, dict) and "name" in c and ("args" in c or "arguments" in c) for c in value)
+    ):
+        tool_calls = [
+            {
+                "id": c.get("id"),
+                "type": "function",
+                "function": {
+                    "name": c["name"],
+                    "arguments": json.dumps(c.get("args", c.get("arguments", {}))),
+                },
+            }
+            for c in value
+        ]
+        return json.dumps([{"role": "assistant", "content": None, "tool_calls": tool_calls}])
     messages = _messages_of(value)
     if not messages:
         raise ValueError("no message list found")
@@ -241,6 +264,11 @@ def _parse(raw: Any) -> Any:
     return json.loads(raw)
 
 
+def _is_empty(raw: Any) -> bool:
+    """Empty values (middleware hooks emit ``{}``) are left alone, not marked failed."""
+    return raw is None or (isinstance(raw, str) and raw.strip() in ("", "{}", "[]", "null"))
+
+
 def render_span(span: ReadableSpan) -> ReadableSpan:
     """Apply the render contract to one span. Never mutates; never raises past export."""
     attrs = dict(span.attributes or {})
@@ -267,14 +295,14 @@ def render_span(span: ReadableSpan) -> ReadableSpan:
         # attempted, so no conversion error can put it back on the wire.
         raw_input = attrs.pop(INPUT_VALUE, None)
         attrs.pop(INPUT_MIME, None)
-        if span.name == "tools" and raw_input is not None:
+        if span.name == "tools" and not _is_empty(raw_input):
             try:
                 attrs[INPUT_VALUE] = _render_triggering_call(_parse(raw_input))
                 attrs[INPUT_MIME] = JSON_MIME
             except Exception:
                 failed = True  # input stays dropped
                 logger.warning("render adapter: triggering-call derivation failed on %r", span.name, exc_info=True)
-        if OUTPUT_VALUE in attrs:
+        if not _is_empty(attrs.get(OUTPUT_VALUE)):
             try:
                 value = _parse(attrs[OUTPUT_VALUE])
                 fn = _render_command if _unwrap_command(value) else _render_messages
@@ -283,31 +311,31 @@ def render_span(span: ReadableSpan) -> ReadableSpan:
                 failed = True
 
     elif is_root:
-        if INPUT_VALUE in attrs:
+        if not _is_empty(attrs.get(INPUT_VALUE)):
             try:
                 convert(INPUT_VALUE, INPUT_MIME, _render_messages, _parse(attrs[INPUT_VALUE]))
             except Exception:
                 failed = True
-        if OUTPUT_VALUE in attrs:
+        if not _is_empty(attrs.get(OUTPUT_VALUE)):
             try:
                 convert(OUTPUT_VALUE, OUTPUT_MIME, _render_last_message, _parse(attrs[OUTPUT_VALUE]))
             except Exception:
                 failed = True
 
     elif kind == "LLM":
-        if INPUT_VALUE in attrs:
+        if not _is_empty(attrs.get(INPUT_VALUE)):
             try:
                 convert(INPUT_VALUE, INPUT_MIME, _render_messages, _parse(attrs[INPUT_VALUE]))
             except Exception:
                 failed = True
-        if OUTPUT_VALUE in attrs:
+        if not _is_empty(attrs.get(OUTPUT_VALUE)):
             try:
                 convert(OUTPUT_VALUE, OUTPUT_MIME, _render_llm_result, _parse(attrs[OUTPUT_VALUE]))
             except Exception:
                 failed = True
 
     elif kind == "TOOL":
-        if OUTPUT_VALUE in attrs:
+        if not _is_empty(attrs.get(OUTPUT_VALUE)):
             try:
                 rendered = _render_tool_output(_parse(attrs[OUTPUT_VALUE]))
                 attrs[OUTPUT_VALUE] = rendered

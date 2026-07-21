@@ -134,6 +134,33 @@ def test_node_input_drop_is_fail_closed_on_garbage():
     assert INPUT_VALUE not in rendered.attributes  # dropped even though unparseable
 
 
+def test_tools_node_input_toolcall_list_form():
+    # THE live form (verified via local instrumented run 2026-07-21): LangChain v1's
+    # ToolNode input is the tool_calls list itself, not state.
+    calls = [{"name": "get_data", "args": {"series": "natgas"}, "id": "call_1", "type": "tool_call"}]
+    span = Span("tools", {
+        SPAN_KIND: "CHAIN",
+        INPUT_VALUE: json.dumps(calls),
+        "metadata": json.dumps({"langgraph_node": "tools"}),
+    })
+    messages = assert_openai_messages(render_span(span).attributes[INPUT_VALUE])
+    assert messages[0]["role"] == "assistant"
+    tc = messages[0]["tool_calls"][0]
+    assert tc["function"]["name"] == "get_data"
+    assert json.loads(tc["function"]["arguments"]) == {"series": "natgas"}
+
+
+def test_empty_middleware_output_not_marked_failed():
+    span = Span("TelemetrySummarizationMiddleware.before_model", {
+        SPAN_KIND: "CHAIN",
+        OUTPUT_VALUE: "{}",
+        "metadata": json.dumps({"langgraph_node": "TelemetrySummarizationMiddleware.before_model"}),
+    })
+    rendered = render_span(span)
+    assert rendered.attributes[OUTPUT_VALUE] == "{}"
+    assert RENDER_FAILED not in rendered.attributes
+
+
 def test_tools_node_input_becomes_triggering_call():
     state = {"messages": [
         {"type": "human", "data": {"content": "load it"}},
